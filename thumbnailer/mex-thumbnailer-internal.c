@@ -343,12 +343,14 @@ get_shot (const char *uri)
         {
           gint64 seekpos;
           GstBuffer *frame;
+          int max_count;
 
           if (duration > 0)
             {
-              if (duration / (3 * GST_SECOND) > 90) {
-                  seekpos = (rand () % (duration / (3 * GST_SECOND))) * GST_SECOND;
-              }
+              if (duration / GST_SECOND > 90)
+                {
+                  seekpos = (rand () % 90) * GST_SECOND;
+                }
               else
                 {
                   seekpos = (rand () % (duration / (GST_SECOND))) * GST_SECOND;
@@ -363,11 +365,21 @@ get_shot (const char *uri)
                                    GST_SEEK_FLAG_FLUSH |
                                    GST_SEEK_FLAG_ACCURATE, seekpos);
 
-          /* Wait for seek to complete */
+          /*
+           * Wait for seek to complete
+           *
+           * Allow for the seek to take up to 1/4 of the requested seek time,
+           * and at least 3s.
+           */
           count = 0;
+          max_count = seekpos / (4 * GST_SECOND) + 1;
+
+          if (max_count < 3)
+            max_count = 3;
+
           state = gst_element_get_state (playbin, NULL, 0,
                                          0.2 * GST_SECOND);
-          while (state == GST_STATE_CHANGE_ASYNC && count < 3)
+          while (state == GST_STATE_CHANGE_ASYNC && count < max_count)
             {
               state = gst_element_get_state (playbin, NULL, 0, 1 * GST_SECOND);
               count++;
