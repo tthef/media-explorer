@@ -220,6 +220,9 @@ PKG_CHECK_MODULES(MEX, "$modules")
 
 PKG_CHECK_MODULES(GCONTROLLER, [gobject-2.0 >= 2.20])
 
+MEX_REQUIRES="$modules  gobject-2.0 >= 2.20"
+AC_SUBST(MEX_REQUIRES)
+
 AC_ARG_ENABLE([lirc],
               [AC_HELP_STRING([--enable-lirc],
                               [Enables LIRC remote control support])],
@@ -440,6 +443,7 @@ AC_CONFIG_FILES([
   build/Makefile
   mex/Makefile
   mex/glib-controller/Makefile
+  mex/mex-$MEX_API_VERSION.pc:mex/mex.pc.in
   player/Makefile
   data/Makefile
   data/appicons/Makefile
