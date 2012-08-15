@@ -324,23 +324,48 @@ _close_request_cb (gpointer unused, MexInfoBar *self)
   return TRUE;
 }
 
+typedef struct LauncherData
+{
+  MexInfoBar *bar;
+  char       *command;
+} LauncherData;
+
 #ifdef HAVE_GIO_UNIX
 static gboolean
-_app_launcher_cb (ClutterActor *actor, gpointer command)
+_app_launcher_cb (ClutterActor *actor, LauncherData *data)
 {
   GError *error=NULL;
+  ClutterActor *stage;
+  char *cmd;
 
-  if (!g_spawn_command_line_async ((const gchar *)command, &error))
+  /*
+   * Append size parameters to the command line.
+   *
+   * NB: we can only query the stage size after it's been realize, which means
+   * we cannot pre-compute this when connecting the callback.
+   * Doing it here on the fly has also the advantage of not having to worry
+   * about the stage changing size.
+   */
+  stage = clutter_actor_get_stage (CLUTTER_ACTOR (data->bar));
+
+  cmd = g_strdup_printf ("%s --width=%d --height=%d --fullscreen",
+                         data->command,
+                         (int)clutter_actor_get_width (stage),
+                         (int)clutter_actor_get_height (stage));
+
+  if (!g_spawn_command_line_async (cmd, &error))
     {
       g_warning (G_STRLOC ": Error launching: %s", error->message);
       g_error_free (error);
     }
 
+  g_free (cmd);
+
   return TRUE;
 }
 
 static MxAction *
-_action_new_from_desktop_file (const gchar *desktop_file_id)
+_action_new_from_desktop_file (MexInfoBar *self, const gchar *desktop_file_id)
 {
   GDesktopAppInfo *dai;
 
@@ -351,13 +376,17 @@ _action_new_from_desktop_file (const gchar *desktop_file_id)
       MxAction *action;
       GAppInfo *ai;
       GIcon *icon;
+      LauncherData *data = g_slice_new (LauncherData);
 
       ai = G_APP_INFO (dai);
+
+      data->bar = self;
+      data->command = g_strdup (g_app_info_get_commandline (ai));
 
       action = mx_action_new_full (g_app_info_get_name (ai),
                                    g_app_info_get_display_name (ai),
                                    G_CALLBACK (_app_launcher_cb),
-                                   (gpointer)g_app_info_get_commandline (ai));
+                                   data);
 
      icon = g_app_info_get_icon (ai);
      if (icon)
@@ -376,7 +405,7 @@ _action_new_from_desktop_file (const gchar *desktop_file_id)
 }
 #else
 static MxAction *
-_action_new_from_desktop_file (const gchar *desktop_file_id)
+_action_new_from_desktop_file (MexInfoBar *self, const gchar *desktop_file_id)
 {
   return NULL;
 }
@@ -401,7 +430,7 @@ _create_settings_dialog (MexInfoBar *self)
 
   /* Create actions for settings dialog */
   network_settings =
-    _action_new_from_desktop_file ("mex-networks.desktop");
+    _action_new_from_desktop_file (self, "mex-networks.desktop");
 
   close_dialog = mx_action_new_full ("close", _("Close"),
                                      G_CALLBACK (_close_dialog_cb), self);
